@@ -1698,6 +1698,7 @@ void debuginator_get_default_config(TheDebuginatorConfig* config) {
 	config->edit_types[DEBUGINATOR_EditTypeArray].expanded_draw = debuginator__expanded_draw_default;
 	config->edit_types[DEBUGINATOR_EditTypeActionArray].expanded_draw = debuginator__expanded_draw_default;
 	config->edit_types[DEBUGINATOR_EditTypeActionArray].forget_state = true;
+	config->edit_types[DEBUGINATOR_EditTypeActionArray].toggle_by_default = true;
 	config->edit_types[DEBUGINATOR_EditTypeBoolean].quick_draw = debuginator__quick_draw_boolean;
 	config->edit_types[DEBUGINATOR_EditTypeBoolean].expanded_draw = debuginator__expanded_draw_boolean;
 	config->edit_types[DEBUGINATOR_EditTypeBoolean].toggle_by_default = true;
