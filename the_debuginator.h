@@ -2377,6 +2377,104 @@ void debuginator_move_to_parent(TheDebuginator* debuginator) {
 	}
 }
 
+DebuginatorItem *debuginator__find_closest_by_height(TheDebuginator *debuginator, DebuginatorItem *item, int height) {
+	DEBUGINATOR_assert(item->is_folder);
+	DebuginatorItem *child = debuginator__first_visible_child(item);
+	DebuginatorItem *first_child = child;
+	DebuginatorItem *last_child = 0;
+	int last_distance = 0;
+	while (child) {
+		int child_height = 0;
+		debuginator__distance_to_hot_item(debuginator->root, child, debuginator->item_height, &child_height);
+		int distance = child_height - height;
+		int item_height = (child->is_folder || !child->leaf.is_expanded) ? debuginator->item_height : debuginator->item_height * 2; // The lookup returns the height of the first child if it is expanded
+		if (distance > item_height) {
+			if (!last_child) {
+				return child;
+			} else if (last_child->is_folder) {
+				DebuginatorItem *descendent = debuginator__find_closest_by_height(debuginator, last_child, height);
+				if (descendent) {
+					int descendent_distance = 0;
+					debuginator__distance_to_hot_item(debuginator->root, descendent, debuginator->item_height, &descendent_distance);
+					descendent_distance -= height;
+					if (descendent->is_folder) {
+						return (descendent_distance < debuginator->item_height && descendent_distance > last_distance) ? descendent : last_child;
+					} else if (descendent->leaf.is_expanded) {
+						if (descendent_distance >= debuginator->item_height || descendent_distance <= last_distance) {
+							descendent->leaf.hot_index = -1; // Mark that we don't want the active one
+						}
+					}
+					return descendent;
+				}
+				return last_child;
+			} else if (last_child->leaf.is_expanded) {
+				int descendent_distance = last_distance;
+				if (last_child->leaf.is_expanded) {
+					for (int i = 0; i < last_child->leaf.num_values; ++i) {
+						descendent_distance += debuginator->item_height;
+						if (descendent_distance > 0) {
+							last_child->leaf.active_index = i;
+							last_child->leaf.hot_index = last_child->leaf.active_index;
+							break;
+						}
+					}
+				}
+			}
+			return last_child;
+		}
+
+		last_child = child;
+		last_distance = distance;
+		child = debuginator__next_visible_sibling(child);
+		if (child == first_child) {
+			break;
+		}
+	}
+	if (!last_child) {
+		return first_child;
+	}
+	if (last_child->is_folder) {
+		return debuginator__find_closest_by_height(debuginator, last_child, height);
+	}
+	int descendent_distance = last_distance;
+	if (last_child->leaf.is_expanded) {
+		for (int i = 0; i < last_child->leaf.num_values; ++i) {
+			descendent_distance += debuginator->item_height;
+			if (descendent_distance > 0) {
+				last_child->leaf.active_index = i;
+				last_child->leaf.hot_index = last_child->leaf.active_index;
+				break;
+			}
+		}
+	}
+	return last_child;
+}
+
+void debuginator_activate_closest_by_height(TheDebuginator *debuginator, int height) {
+	int pixel_active_distance = 0;
+	debuginator__distance_to_hot_item(debuginator->root, debuginator->hot_item, debuginator->item_height, &pixel_active_distance);
+	int pixel_root = debuginator->focus_height * debuginator->size.y - pixel_active_distance;
+	DebuginatorItem *item = debuginator__find_closest_by_height(debuginator, debuginator->root, height - pixel_root);
+	// Don't update hot_index; we're activating, not moving.
+	if (!item->is_folder) {
+		if (item->leaf.is_expanded || debuginator->edit_types[item->leaf.edit_type].toggle_by_default) {
+			if (item->leaf.hot_index == -1) {
+				item->leaf.is_expanded = false;
+				item->leaf.hot_index = item->leaf.active_index;
+				debuginator__set_total_height(item, debuginator->item_height);
+			} else {
+				if (++item->leaf.hot_index == item->leaf.num_values) {
+					item->leaf.hot_index = 0;
+				}
+				debuginator_activate(debuginator, item, true);
+			}
+		} else {
+			item->leaf.is_expanded = true;
+			debuginator__set_total_height(item, debuginator->item_height * (item->leaf.num_values) + debuginator->item_height); // for description, HACK! :(
+		}
+	}
+}
+
 // ██╗   ██╗████████╗██╗██╗     ██╗████████╗██╗   ██╗
 // ██║   ██║╚══██╔══╝██║██║     ██║╚══██╔══╝╚██╗ ██╔╝
 // ██║   ██║   ██║   ██║██║     ██║   ██║    ╚████╔╝
