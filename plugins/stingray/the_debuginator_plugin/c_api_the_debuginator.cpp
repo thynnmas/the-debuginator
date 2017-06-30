@@ -22,6 +22,7 @@ struct TheDebuginatorWrapper {
 	MaterialPtr font_material;
 	bool memory_owned_by_this_plugin;
 	int font_size;
+	float scroll_repeat_timer;
 };
 
 struct InputWrapper {
@@ -175,6 +176,8 @@ void update_debuginators(float dt) {
 
 		debuginator_update(&wrapper->debuginator, dt);
 		debuginator_draw(&wrapper->debuginator, dt);
+
+		wrapper->scroll_repeat_timer += dt;
 	}
 
 	if (plugin_memory->input_wrapper.time_since_pressed != -1) {
@@ -292,6 +295,8 @@ void handle_default_input(TheDebuginator* debuginator, unsigned devices) {
 		return;
 	}
 
+	float default_focus_height = 0.3f;
+
 	while (devices & Debuginator_Keyboard) { // So we can break out of the scope
 		devices &= ~Debuginator_Keyboard;
 		CApiInputControllerPtr keyboard = script_api->Input->keyboard();
@@ -315,10 +320,12 @@ void handle_default_input(TheDebuginator* debuginator, unsigned devices) {
 		if (input_wrapper.pressed_repeat("up")) {
 			bool long_move = ctrl_pressed;
 			debuginator_move_to_prev_leaf(debuginator, long_move);
-		}
+			debuginator->focus_height = default_focus_height;
+		} 
 		else if (input_wrapper.pressed_repeat("down")) {
 			bool long_move = ctrl_pressed;
 			debuginator_move_to_next_leaf(debuginator, long_move);
+			debuginator->focus_height = default_focus_height;
 		}
 		else if (input_wrapper.pressed("left")) {
 			DebuginatorItem* hot_item = debuginator_get_hot_item(debuginator);
@@ -376,6 +383,35 @@ void handle_default_input(TheDebuginator* debuginator, unsigned devices) {
 					}
 				}
 
+	if (devices & Debuginator_Mouse) {
+		CApiInputControllerPtr mouse = script_api->Input->mouse();
+		input_wrapper.controller = mouse;
+
+		if (api->any_released(input_wrapper.controller) != UINT_MAX) {
+			input_wrapper.time_since_pressed = -1;
+		}
+
+
+		if (debuginator_is_open(debuginator)) {
+			CApiVector3 scroll = input_wrapper.axis("wheel");
+			if (scroll.y != 0) {
+				debuginator->focus_height += scroll.y * 0.05f;
+				float max_height = debuginator_total_height(debuginator);
+				int active_height = 0;
+				debuginator__distance_to_hot_item(debuginator->root, debuginator->hot_item, debuginator->item_height, &active_height);
+				float height_pixels = debuginator->focus_height * debuginator->size.y - active_height;
+				if (height_pixels < -(max_height - (1.f - default_focus_height) * debuginator->size.y)) {
+					debuginator->focus_height = -(max_height - (1.f - default_focus_height) * debuginator->size.y - active_height) / debuginator->size.y;
+				} else if (height_pixels > default_focus_height * debuginator->size.y) {
+					debuginator->focus_height = (default_focus_height * debuginator->size.y + active_height) / debuginator->size.y;
+				}
+			}
+
+			if (input_wrapper.pressed_repeat("left")) {
+				CApiVector3 pos = input_wrapper.axis("cursor");
+				float y = debuginator->screen_resolution.y - pos.y;
+				if (pos.x > debuginator->top_left.x && pos.x < debuginator->top_left.x + debuginator->size.x) {
+					debuginator_activate_closest_by_height(debuginator, y);
 				if (real_strokes > 0) {
 					debuginator_update_filter(debuginator, new_filter);
 				}
@@ -413,10 +449,12 @@ void handle_default_input(TheDebuginator* debuginator, unsigned devices) {
 			if (input_wrapper.pressed_repeat("d_up")) {
 				bool long_move = false;
 				debuginator_move_to_prev_leaf(debuginator, long_move);
+				debuginator->focus_height = default_focus_height;
 			}
 			else if (input_wrapper.pressed_repeat("d_down")) {
 				bool long_move = false;
 				debuginator_move_to_next_leaf(debuginator, long_move);
+				debuginator->focus_height = default_focus_height;
 			}
 			else if (input_wrapper.pressed("d_left")) {
 				DebuginatorItem* hot_item = debuginator_get_hot_item(debuginator);
@@ -486,10 +524,12 @@ void handle_default_input(TheDebuginator* debuginator, unsigned devices) {
 			if (input_wrapper.pressed_repeat("up")) {
 				bool long_move = false;
 				debuginator_move_to_prev_leaf(debuginator, long_move);
+				debuginator->focus_height = default_focus_height;
 			}
 			else if (input_wrapper.pressed_repeat("down")) {
 				bool long_move = false;
 				debuginator_move_to_next_leaf(debuginator, long_move);
+				debuginator->focus_height = default_focus_height;
 			}
 			else if (input_wrapper.pressed("left")) {
 				DebuginatorItem* hot_item = debuginator_get_hot_item(debuginator);
@@ -510,10 +550,12 @@ void handle_default_input(TheDebuginator* debuginator, unsigned devices) {
 			else if (input_wrapper.pressed_repeat("triangle")) {
 				bool long_move = true;
 				debuginator_move_to_prev_leaf(debuginator, long_move);
+				debuginator->focus_height = default_focus_height;
 			}
 			else if (input_wrapper.pressed_repeat("cross")) {
 				bool long_move = true;
 				debuginator_move_to_next_leaf(debuginator, long_move);
+				debuginator->focus_height = default_focus_height;
 			}
 			else if (input_wrapper.pressed("circle")) {
 				bool direct_activate = true;
