@@ -573,6 +573,9 @@ typedef struct TheDebuginator {
 	char open_direction; // char so I can be lazy and use copy_1_byte.
 	float focus_height;
 	float current_height_offset;
+	// Default value for the focus height stored here because the config value is not gueranteed to be around on the outside.
+	// This is not an ideal solution, but it works.
+	float default_focus_height;
 
 	DebuginatorAnimation animations[8];
 	int animation_count;
@@ -1743,6 +1746,7 @@ void debuginator_create(TheDebuginatorConfig* config, TheDebuginator* debuginato
 	debuginator->size = config->size;
 	debuginator->open_direction = (char)config->open_direction;
 	debuginator->focus_height = config->focus_height;
+	debuginator->default_focus_height = config->focus_height;
 	debuginator->screen_resolution = config->screen_resolution;
 	debuginator->item_height = config->item_height;
 
@@ -2391,7 +2395,8 @@ DebuginatorItem *debuginator__find_closest_by_height(TheDebuginator *debuginator
 		if (distance > item_height) {
 			if (!last_child) {
 				return child;
-			} else if (last_child->is_folder) {
+			}
+			else if (last_child->is_folder) {
 				DebuginatorItem *descendent = debuginator__find_closest_by_height(debuginator, last_child, height);
 				if (descendent) {
 					int descendent_distance = 0;
@@ -2399,7 +2404,8 @@ DebuginatorItem *debuginator__find_closest_by_height(TheDebuginator *debuginator
 					descendent_distance -= height;
 					if (descendent->is_folder) {
 						return (descendent_distance < debuginator->item_height && descendent_distance > last_distance) ? descendent : last_child;
-					} else if (descendent->leaf.is_expanded) {
+					}
+					else if (descendent->leaf.is_expanded) {
 						if (descendent_distance >= debuginator->item_height || descendent_distance <= last_distance) {
 							descendent->leaf.hot_index = -1; // Mark that we don't want the active one
 						}
@@ -2407,16 +2413,15 @@ DebuginatorItem *debuginator__find_closest_by_height(TheDebuginator *debuginator
 					return descendent;
 				}
 				return last_child;
-			} else if (last_child->leaf.is_expanded) {
+			}
+			else if (last_child->leaf.is_expanded) {
 				int descendent_distance = last_distance;
-				if (last_child->leaf.is_expanded) {
-					for (int i = 0; i < last_child->leaf.num_values; ++i) {
-						descendent_distance += debuginator->item_height;
-						if (descendent_distance > 0) {
-							last_child->leaf.active_index = i;
-							last_child->leaf.hot_index = last_child->leaf.active_index;
-							break;
-						}
+				for (int i = 0; i < last_child->leaf.num_values; ++i) {
+					descendent_distance += debuginator->item_height;
+					if (descendent_distance > 0) {
+						last_child->leaf.active_index = i;
+						last_child->leaf.hot_index = last_child->leaf.active_index;
+						break;
 					}
 				}
 			}
@@ -2462,18 +2467,21 @@ void debuginator_activate_closest_by_height(TheDebuginator *debuginator, int hei
 				item->leaf.is_expanded = false;
 				item->leaf.hot_index = item->leaf.active_index;
 				debuginator__set_total_height(item, debuginator->item_height);
-			} else {
+			}
+			else {
 				if (++item->leaf.hot_index == item->leaf.num_values) {
 					item->leaf.hot_index = 0;
 				}
 				debuginator_activate(debuginator, item, true);
 			}
-		} else {
+		}
+		else {
 			item->leaf.is_expanded = true;
 			debuginator__set_total_height(item, debuginator->item_height * (item->leaf.num_values) + debuginator->item_height); // for description, HACK! :(
 		}
 	}
 }
+
 
 // ██╗   ██╗████████╗██╗██╗     ██╗████████╗██╗   ██╗
 // ██║   ██║╚══██╔══╝██║██║     ██║╚══██╔══╝╚██╗ ██╔╝
